@@ -5,8 +5,11 @@ Private Const TEMPLATE_SHEET As String = "PR"
 Private Const SOURCE_SHEET As String = "Check Sheet"
 Private Const SRC_FIRST_DATA_ROW As Long = 6
 Private Const FORM_HEIGHT As Long = 26
-Private Const PR_LIST_START_ROW As Long = 9
-Private Const PR_LIST_END_ROW As Long = 18
+Private Const FORM2_START_ROW As Long = 28
+Private Const PR1_START As Long = 9
+Private Const PR1_END As Long = 18
+Private Const PR2_START As Long = 36
+Private Const PR2_END As Long = 45
 Private Const COL_A As String = "A"
 Private Const COL_B As String = "B"
 Private Const COL_K As String = "K"
@@ -17,13 +20,13 @@ Public Sub Generate_PR_Files()
     Dim saveFolder As String
     Dim idx As Long, total As Long, perFile As Long
     Dim wbOut As Workbook, wsOut As Worksheet
-    Dim pageNo As Long
+    Dim fileCount As Long
     On Error GoTo ErrHandler
     
     Set wsSrc = ThisWorkbook.Worksheets(SOURCE_SHEET)
     Set wsTpl = ThisWorkbook.Worksheets(TEMPLATE_SHEET)
     saveFolder = ThisWorkbook.Path
-    perFile = 10
+    perFile = 20
     
     Set orderedRows = BuildOrderedByColD(wsSrc, SRC_FIRST_DATA_ROW)
     If orderedRows Is Nothing Or orderedRows.Count = 0 Then
@@ -33,25 +36,25 @@ Public Sub Generate_PR_Files()
     
     total = orderedRows.Count
     idx = 1
-    pageNo = 0
+    fileCount = 0
     
     Do While idx <= total
         Set wbOut = Workbooks.Add
         Set wsOut = wbOut.Worksheets(1)
         wsOut.Name = "PR"
-        PrepareOneSheetFromTemplate wsTpl, wsOut
-        idx = FillOnePage(wsSrc, wsOut, orderedRows, idx)
-        pageNo = pageNo + 1
+        PrepareTwoSectionsFromTemplate wsTpl, wsOut
+        idx = FillTwoSections(wsSrc, wsOut, orderedRows, idx)
+        fileCount = fileCount + 1
         
         Static seq As Long
         Dim fn As String
         seq = seq + 1
-        fn = saveFolder & "\PR_" & Format(Now, "yyyy-mm-dd_HHMMSS_") & Format(Timer * 1000 Mod 1000, "000") & "_part" & Format(pageNo, "00") & "_seq" & Format(seq, "00") & ".xlsx"
+        fn = saveFolder & "\PR_" & Format(Now, "yyyy-mm-dd_HHMMSS_") & Format(Timer * 1000 Mod 1000, "000") & "_part" & Format(fileCount, "00") & "_seq" & Format(seq, "00") & ".xlsx"
         wbOut.SaveAs Filename:=fn, FileFormat:=xlOpenXMLWorkbook
         wbOut.Close SaveChanges:=False
     Loop
     
-    MsgBox "PR files created: " & pageNo & " file(s).", vbInformation
+    MsgBox "PR files created: " & fileCount & " file(s).", vbInformation
     Exit Sub
 
 ErrHandler:
@@ -85,7 +88,7 @@ Private Function BuildOrderedByColD(ws As Worksheet, startRow As Long) As Collec
     Set BuildOrderedByColD = out
 End Function
 
-Private Sub PrepareOneSheetFromTemplate(wsTpl As Worksheet, wsOut As Worksheet)
+Private Sub PrepareTwoSectionsFromTemplate(wsTpl As Worksheet, wsOut As Worksheet)
     Dim rngTpl As Range
     Dim c As Long, i As Long
     Set rngTpl = wsTpl.Range("A1:Q" & FORM_HEIGHT)
@@ -94,45 +97,59 @@ Private Sub PrepareOneSheetFromTemplate(wsTpl As Worksheet, wsOut As Worksheet)
         wsOut.Columns(c).ColumnWidth = wsTpl.Columns(c).ColumnWidth
     Next c
     rngTpl.Copy Destination:=wsOut.Range("A1")
+    rngTpl.Copy Destination:=wsOut.Range("A" & FORM2_START_ROW)
     For i = 1 To FORM_HEIGHT
         wsOut.Rows(i).RowHeight = wsTpl.Rows(i).RowHeight
+        wsOut.Rows(FORM2_START_ROW + (i - 1)).RowHeight = wsTpl.Rows(i).RowHeight
     Next i
 End Sub
 
-Private Function FillOnePage(wsSrc As Worksheet, wsOut As Worksheet, orderedRows As Collection, ByVal startIdx As Long) As Long
-    Dim rPR As Long, idx As Long
-    Dim srcRow As Long
+Private Function FillTwoSections(wsSrc As Worksheet, wsOut As Worksheet, _
+                                 orderedRows As Collection, ByVal startIdx As Long) As Long
+    Dim idx As Long: idx = startIdx
+    wsOut.Range("A" & PR1_START & ":Q" & PR1_END).ClearContents
+    wsOut.Range("A" & PR2_START & ":Q" & PR2_END).ClearContents
+    Dim r As Long
+    
+    For r = PR1_START To PR1_END
+        If idx > orderedRows.Count Then FillTwoSections = idx: Exit Function
+        FillOneLine wsSrc, wsOut, orderedRows(idx), r
+        idx = idx + 1
+    Next r
+    
+    For r = PR2_START To PR2_END
+        If idx > orderedRows.Count Then FillTwoSections = idx: Exit Function
+        FillOneLine wsSrc, wsOut, orderedRows(idx), r
+        idx = idx + 1
+    Next r
+    
+    FillTwoSections = idx
+End Function
+
+Private Sub FillOneLine(wsSrc As Worksheet, wsOut As Worksheet, srcRow As Long, tgtRow As Long)
     Dim vA As String, vB As String, vC As String, vD As String, vE As Variant
     Dim descTxt As String
-    idx = startIdx
-    wsOut.Range("A" & PR_LIST_START_ROW & ":Q" & PR_LIST_END_ROW).ClearContents
-    For rPR = PR_LIST_START_ROW To PR_LIST_END_ROW
-        If idx > orderedRows.Count Then Exit For
-        srcRow = CLng(orderedRows(idx))
-        vA = TrimSafe(wsSrc.Cells(srcRow, "A").Value)
-        vB = TrimSafe(wsSrc.Cells(srcRow, "B").Value)
-        vC = TrimSafe(wsSrc.Cells(srcRow, "C").Value)
-        vD = TrimSafe(wsSrc.Cells(srcRow, "D").Value)
-        vE = wsSrc.Cells(srcRow, "E").Value
-        descTxt = JoinNonEmpty(Array(vB, vC), " ")
-        If Len(TrimSafe(vD)) > 0 Then
-            If Len(descTxt) > 0 Then
-                descTxt = descTxt & " / " & TrimSafe(vD)
-            Else
-                descTxt = TrimSafe(vD)
-            End If
-        End If
-        WriteToMergedTopLeft wsOut.Range(COL_A & rPR), vA
-        WriteToMergedTopLeft wsOut.Range(COL_B & rPR), descTxt
-        If Len(TrimSafe(vE)) > 0 Then
-            WriteToMergedTopLeft wsOut.Range(COL_K & rPR), vE
+    vA = TrimSafe(wsSrc.Cells(srcRow, "A").Value)
+    vB = TrimSafe(wsSrc.Cells(srcRow, "B").Value)
+    vC = TrimSafe(wsSrc.Cells(srcRow, "C").Value)
+    vD = TrimSafe(wsSrc.Cells(srcRow, "D").Value)
+    vE = wsSrc.Cells(srcRow, "E").Value
+    descTxt = JoinNonEmpty(Array(vB, vC), " ")
+    If Len(TrimSafe(vD)) > 0 Then
+        If Len(descTxt) > 0 Then
+            descTxt = descTxt & " / " & TrimSafe(vD)
         Else
-            WriteToMergedTopLeft wsOut.Range(COL_K & rPR), ""
+            descTxt = TrimSafe(vD)
         End If
-        idx = idx + 1
-    Next rPR
-    FillOnePage = idx
-End Function
+    End If
+    WriteToMergedTopLeft wsOut.Range(COL_A & tgtRow), vA
+    WriteToMergedTopLeft wsOut.Range(COL_B & tgtRow), descTxt
+    If Len(TrimSafe(vE)) > 0 Then
+        WriteToMergedTopLeft wsOut.Range(COL_K & tgtRow), vE
+    Else
+        WriteToMergedTopLeft wsOut.Range(COL_K & tgtRow), ""
+    End If
+End Sub
 
 Private Function TrimSafe(v As Variant) As String
     If IsError(v) Or IsEmpty(v) Then
