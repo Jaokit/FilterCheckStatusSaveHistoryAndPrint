@@ -1,15 +1,17 @@
-Attribute VB_Name = "Module4"
 Option Explicit
 
 Private Const TEMPLATE_SHEET As String = "PR"
 Private Const SOURCE_SHEET As String = "Check Sheet"
 Private Const SRC_FIRST_DATA_ROW As Long = 6
+
 Private Const FORM_HEIGHT As Long = 26
 Private Const FORM2_START_ROW As Long = 28
+
 Private Const PR1_START As Long = 9
 Private Const PR1_END As Long = 18
 Private Const PR2_START As Long = 36
 Private Const PR2_END As Long = 45
+
 Private Const COL_A As String = "A"
 Private Const COL_B As String = "B"
 Private Const COL_K As String = "K"
@@ -18,7 +20,7 @@ Public Sub Generate_PR_Files()
     Dim wsSrc As Worksheet, wsTpl As Worksheet
     Dim orderedRows As Collection
     Dim saveFolder As String
-    Dim idx As Long, total As Long, perFile As Long
+    Dim idx As Long, total As Long
     Dim wbOut As Workbook, wsOut As Worksheet
     Dim fileCount As Long
     On Error GoTo ErrHandler
@@ -26,7 +28,6 @@ Public Sub Generate_PR_Files()
     Set wsSrc = ThisWorkbook.Worksheets(SOURCE_SHEET)
     Set wsTpl = ThisWorkbook.Worksheets(TEMPLATE_SHEET)
     saveFolder = ThisWorkbook.Path
-    perFile = 20
     
     Set orderedRows = BuildOrderedByColD(wsSrc, SRC_FIRST_DATA_ROW)
     If orderedRows Is Nothing Or orderedRows.Count = 0 Then
@@ -102,27 +103,39 @@ Private Sub PrepareTwoSectionsFromTemplate(wsTpl As Worksheet, wsOut As Workshee
         wsOut.Rows(i).RowHeight = wsTpl.Rows(i).RowHeight
         wsOut.Rows(FORM2_START_ROW + (i - 1)).RowHeight = wsTpl.Rows(i).RowHeight
     Next i
+    With wsOut.PageSetup
+        .PaperSize = xlPaperA4
+        .Orientation = xlPortrait
+        .Zoom = False
+        .FitToPagesWide = 1
+        .FitToPagesTall = 1
+        .LeftMargin = Application.InchesToPoints(0)
+        .RightMargin = Application.InchesToPoints(0)
+        .TopMargin = Application.InchesToPoints(0)
+        .BottomMargin = Application.InchesToPoints(0)
+        .HeaderMargin = Application.InchesToPoints(0)
+        .FooterMargin = Application.InchesToPoints(0)
+        .CenterHorizontally = True
+        .CenterVertically = True
+    End With
 End Sub
 
 Private Function FillTwoSections(wsSrc As Worksheet, wsOut As Worksheet, _
                                  orderedRows As Collection, ByVal startIdx As Long) As Long
     Dim idx As Long: idx = startIdx
+    Dim r As Long
     wsOut.Range("A" & PR1_START & ":Q" & PR1_END).ClearContents
     wsOut.Range("A" & PR2_START & ":Q" & PR2_END).ClearContents
-    Dim r As Long
-    
     For r = PR1_START To PR1_END
         If idx > orderedRows.Count Then FillTwoSections = idx: Exit Function
         FillOneLine wsSrc, wsOut, orderedRows(idx), r
         idx = idx + 1
     Next r
-    
     For r = PR2_START To PR2_END
         If idx > orderedRows.Count Then FillTwoSections = idx: Exit Function
         FillOneLine wsSrc, wsOut, orderedRows(idx), r
         idx = idx + 1
     Next r
-    
     FillTwoSections = idx
 End Function
 
