@@ -1,3 +1,4 @@
+Attribute VB_Name = "Module4"
 Option Explicit
 
 Private Const TEMPLATE_SHEET As String = "PR"
@@ -14,6 +15,7 @@ Private Const PR2_END As Long = 45
 
 Private Const COL_A As String = "A"
 Private Const COL_B As String = "B"
+Private Const COL_I As String = "I"
 Private Const COL_K As String = "K"
 
 Public Sub Generate_PR_Files()
@@ -140,13 +142,15 @@ Private Function FillTwoSections(wsSrc As Worksheet, wsOut As Worksheet, _
 End Function
 
 Private Sub FillOneLine(wsSrc As Worksheet, wsOut As Worksheet, srcRow As Long, tgtRow As Long)
-    Dim vA As String, vB As String, vC As String, vD As String, vE As Variant
+    Dim vA As String, vB As String, vC As String, vD As String, vE As Variant, vJ As Variant
     Dim descTxt As String
     vA = TrimSafe(wsSrc.Cells(srcRow, "A").Value)
     vB = TrimSafe(wsSrc.Cells(srcRow, "B").Value)
     vC = TrimSafe(wsSrc.Cells(srcRow, "C").Value)
     vD = TrimSafe(wsSrc.Cells(srcRow, "D").Value)
     vE = wsSrc.Cells(srcRow, "E").Value
+    vJ = wsSrc.Cells(srcRow, "J").Value
+    
     descTxt = JoinNonEmpty(Array(vB, vC), " ")
     If Len(TrimSafe(vD)) > 0 Then
         If Len(descTxt) > 0 Then
@@ -155,8 +159,14 @@ Private Sub FillOneLine(wsSrc As Worksheet, wsOut As Worksheet, srcRow As Long, 
             descTxt = TrimSafe(vD)
         End If
     End If
+    
     WriteToMergedTopLeft wsOut.Range(COL_A & tgtRow), vA
     WriteToMergedTopLeft wsOut.Range(COL_B & tgtRow), descTxt
+    If Len(TrimSafe(vJ)) > 0 Then
+        WriteToMergedTopLeft wsOut.Range(COL_I & tgtRow), vJ
+    Else
+        WriteToMergedTopLeft wsOut.Range(COL_I & tgtRow), ""
+    End If
     If Len(TrimSafe(vE)) > 0 Then
         WriteToMergedTopLeft wsOut.Range(COL_K & tgtRow), vE
     Else
