@@ -26,21 +26,23 @@ Public Sub Generate_PR_Files()
     Dim wbOut As Workbook, wsOut As Worksheet
     Dim fileCount As Long
     On Error GoTo ErrHandler
-    
+
     Set wsSrc = ThisWorkbook.Worksheets(SOURCE_SHEET)
     Set wsTpl = ThisWorkbook.Worksheets(TEMPLATE_SHEET)
-    saveFolder = ThisWorkbook.Path
-    
+
+    saveFolder = ThisWorkbook.Path & "\Print"
+    If Dir(saveFolder, vbDirectory) = "" Then MkDir saveFolder
+
     Set orderedRows = BuildOrderedByColD(wsSrc, SRC_FIRST_DATA_ROW)
     If orderedRows Is Nothing Or orderedRows.Count = 0 Then
         MsgBox "No visible data found from row " & SRC_FIRST_DATA_ROW & " in '" & SOURCE_SHEET & "'.", vbExclamation
         Exit Sub
     End If
-    
+
     total = orderedRows.Count
     idx = 1
     fileCount = 0
-    
+
     Do While idx <= total
         Set wbOut = Workbooks.Add
         Set wsOut = wbOut.Worksheets(1)
@@ -48,7 +50,7 @@ Public Sub Generate_PR_Files()
         PrepareTwoSectionsFromTemplate wsTpl, wsOut
         idx = FillTwoSections(wsSrc, wsOut, orderedRows, idx)
         fileCount = fileCount + 1
-        
+
         Static seq As Long
         Dim fn As String
         seq = seq + 1
@@ -56,7 +58,7 @@ Public Sub Generate_PR_Files()
         wbOut.SaveAs Filename:=fn, FileFormat:=xlOpenXMLWorkbook
         wbOut.Close SaveChanges:=False
     Loop
-    
+
     MsgBox "PR files created: " & fileCount & " file(s).", vbInformation
     Exit Sub
 
@@ -93,19 +95,33 @@ End Function
 
 Private Sub PrepareTwoSectionsFromTemplate(wsTpl As Worksheet, wsOut As Worksheet)
     Dim rngTpl As Range
-    Dim c As Long, i As Long
+    Dim c As Long, i As Long, midRow As Long
     Set rngTpl = wsTpl.Range("A1:Q" & FORM_HEIGHT)
+
     wsOut.Cells.Clear
     For c = 1 To rngTpl.Columns.Count
         wsOut.Columns(c).ColumnWidth = wsTpl.Columns(c).ColumnWidth
     Next c
+
     rngTpl.Copy Destination:=wsOut.Range("A1")
     rngTpl.Copy Destination:=wsOut.Range("A" & FORM2_START_ROW)
+
     For i = 1 To FORM_HEIGHT
         wsOut.Rows(i).RowHeight = wsTpl.Rows(i).RowHeight
         wsOut.Rows(FORM2_START_ROW + (i - 1)).RowHeight = wsTpl.Rows(i).RowHeight
     Next i
+
+    midRow = FORM2_START_ROW - 1
+    wsOut.Rows(midRow).RowHeight = 6
+    With wsOut.Range("A" & midRow & ":Q" & midRow)
+        .Borders(xlEdgeBottom).LineStyle = xlDash
+        .Borders(xlEdgeBottom).Weight = xlThin
+        .Borders(xlInsideVertical).LineStyle = xlLineStyleNone
+        .Borders(xlInsideHorizontal).LineStyle = xlLineStyleNone
+    End With
+
     With wsOut.PageSetup
+        .PrintArea = "$A$1:$Q$53"
         .PaperSize = xlPaperA4
         .Orientation = xlPortrait
         .Zoom = False
@@ -118,7 +134,8 @@ Private Sub PrepareTwoSectionsFromTemplate(wsTpl As Worksheet, wsOut As Workshee
         .HeaderMargin = Application.InchesToPoints(0)
         .FooterMargin = Application.InchesToPoints(0)
         .CenterHorizontally = True
-        .CenterVertically = True
+        .CenterVertically = False
+        .PrintGridlines = False
     End With
 End Sub
 
@@ -150,7 +167,6 @@ Private Sub FillOneLine(wsSrc As Worksheet, wsOut As Worksheet, srcRow As Long, 
     vD = TrimSafe(wsSrc.Cells(srcRow, "D").Value)
     vE = wsSrc.Cells(srcRow, "E").Value
     vJ = wsSrc.Cells(srcRow, "J").Value
-    
     descTxt = JoinNonEmpty(Array(vB, vC), " ")
     If Len(TrimSafe(vD)) > 0 Then
         If Len(descTxt) > 0 Then
@@ -159,7 +175,6 @@ Private Sub FillOneLine(wsSrc As Worksheet, wsOut As Worksheet, srcRow As Long, 
             descTxt = TrimSafe(vD)
         End If
     End If
-    
     WriteToMergedTopLeft wsOut.Range(COL_A & tgtRow), vA
     WriteToMergedTopLeft wsOut.Range(COL_B & tgtRow), descTxt
     If Len(TrimSafe(vJ)) > 0 Then
